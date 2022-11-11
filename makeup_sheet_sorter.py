@@ -1,7 +1,21 @@
+import dateutil.parser
 from google.cloud import vision
 from google.oauth2 import service_account
 import io
 import os
+from dateutil import parser
+
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 class Makeup_Sheet_Sorter:
@@ -13,6 +27,7 @@ class Makeup_Sheet_Sorter:
         self._output_folder = output_folder_path
 
     def main(self):
+        print(bcolors.OKGREEN + "---------STARTING---------" + bcolors.ENDC)
         for file in self._the_images:
             full_file_path = os.path.join(self._image_folder_path, file)
             with io.open(full_file_path, "rb") as image_file:
@@ -22,10 +37,12 @@ class Makeup_Sheet_Sorter:
             response = self._client.document_text_detection(image=image)
 
             annotated_text = response.full_text_annotation
-            output = self.parse_text(annotated_text)
-            makeup_sheet = Makeup_Sheet(output, file, self._image_folder_path, self._output_folder)
+            student_name = self.parse_text_for_key(annotated_text, "Student Name")
+            date_of_session = self.parse_text_for_key(annotated_text, "Date of Session")
+            makeup_sheet = Makeup_Sheet(student_name, date_of_session, file, self._image_folder_path,
+                                        self._output_folder)
             makeup_sheet.process_file()
-        print("COMPLETE!!")
+        print(bcolors.OKGREEN + "---------COMPLETE---------" + bcolors.ENDC)
 
     def check_vertices(self, list_of_verts, bounding_box):
         up = bounding_box[0]
@@ -66,7 +83,7 @@ class Makeup_Sheet_Sorter:
         average_y = (bounding_box[0] + bounding_box[2]) / 2
         return [average_x, average_y]
 
-    def parse_text(self, the_annotated_text):
+    def parse_text_for_key(self, the_annotated_text, the_key):
         for page in the_annotated_text.pages:
             for block in page.blocks:
                 for paragraph in block.paragraphs:
@@ -74,9 +91,13 @@ class Makeup_Sheet_Sorter:
                     for word in paragraph.words:
                         word_text = ''.join([symbol.text for symbol in word.symbols])
                         paragraph_text += word_text + " "
-                    if "Student Name" in paragraph_text:
-                        bounding_box = self.get_bounding_range(paragraph.bounding_box.vertices)
-                        return self.get_the_name(the_annotated_text, bounding_box)
+                    if the_key in paragraph_text:
+                        if the_key == "Student Name":
+                            bounding_box = self.get_bounding_range(paragraph.bounding_box.vertices)
+                            return self.get_the_name(the_annotated_text, bounding_box)
+                        elif the_key == "Date of Session":
+                            bounding_box = self.get_bounding_range(paragraph.bounding_box.vertices)
+                            return self.get_the_date(the_annotated_text, bounding_box)
 
     def get_the_name(self, the_annotated_text, vertices):
         output = []
@@ -98,26 +119,61 @@ class Makeup_Sheet_Sorter:
         else:
             return "---Unsorted---"
 
+    def get_the_date(self, the_annotated_text, vertices):
+        output = []
+        total_confidence = 0
+        total_word_count = 0
+        for page in the_annotated_text.pages:
+            for block in page.blocks:
+                for paragraph in block.paragraphs:
+                    for word in paragraph.words:
+                        word_text = ''.join([symbol.text for symbol in word.symbols])
+                        if self.check_vertices(word.bounding_box.vertices, vertices):
+                            output.append(word_text)
+                            total_confidence += word.confidence
+                            total_word_count += 1
+        confidence = total_confidence / total_word_count
+        if confidence >= 0.7:
+            return output[0]
+        else:
+            return ""
+
 
 class Makeup_Sheet:
-    def __init__(self, student_name, the_file, old_folder_path, new_folder_path):
+    def __init__(self, student_name, date_of_session, the_file, old_folder_path, new_folder_path):
         self._student_name = student_name
+        self._date_of_session = date_of_session
         self._the_file = the_file
         self._old_folder_path = old_folder_path
         self._new_folder_path = new_folder_path
 
     def process_file(self):
+        try:
+            the_date = parser.parse(self._date_of_session).strftime("%Y-%m-%d")
+        except dateutil.parser.ParserError:
+            the_date = "--Undated"
         original_file = self._old_folder_path + "/" + self._the_file
         new_path = self._new_folder_path + "/" + self._student_name
-        new_file = new_path + "/" + self._the_file
+        if self._student_name == "---Unsorted---":
+            new_file_name = self._the_file
+        else:
+            new_file_name = self._student_name + " (" + the_date + ")"
+        new_file = new_path + "/" + new_file_name
         if not os.path.exists(new_path):
             os.makedirs(new_path)
         os.rename(original_file, new_file)
-        print(f"Moved {self._student_name} Makeup Sheet")
+        print(bcolors.OKBLUE + f"Moved {new_file_name} Makeup Sheet" + bcolors.ENDC)
 
 
 if __name__ == "__main__":
-    raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-    sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+    # --- Mac File Path ---
+    # raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+    # sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+
+    # --- Windows File Path ---
+    raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+    sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+
+    # Start Sorter
     muss = Makeup_Sheet_Sorter(raw_folder, sorted_folder)
     muss.main()
