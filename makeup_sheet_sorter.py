@@ -4,6 +4,7 @@ from google.oauth2 import service_account
 import io
 import os
 from dateutil import parser
+import time
 
 
 class bcolors:
@@ -27,7 +28,8 @@ class Makeup_Sheet_Sorter:
         self._output_folder = output_folder_path
 
     def main(self):
-        print(bcolors.OKGREEN + "---------STARTING---------" + bcolors.ENDC)
+        print(bcolors.OKGREEN + "\n-------------------------STARTING-------------------------" + bcolors.ENDC)
+        start_time = time.perf_counter()
         total_files = len(self._the_images)
         total_sort_success = 0
         for file in self._the_images:
@@ -48,9 +50,11 @@ class Makeup_Sheet_Sorter:
             makeup_sheet.process_file()
         if total_files != 0:
             success_rate = round(total_sort_success / total_files, 2)
-            print(bcolors.WARNING + f"[Total Files: {total_files}] [Total Successful: {total_sort_success}] "
+            print(bcolors.WARNING + f"[Total Files: {total_files}] [Successful: {total_sort_success}] "
                                     f"[Success Rate: {success_rate}]" + bcolors.ENDC)
-        print(bcolors.OKGREEN + "---------COMPLETE---------" + bcolors.ENDC)
+        total_time = time.perf_counter() - start_time
+        print(bcolors.WARNING + f"Finished in {round(total_time, 2)} seconds.")
+        print(bcolors.OKGREEN + "-------------------------COMPLETE-------------------------" + bcolors.ENDC)
 
     def check_vertices(self, list_of_verts, bounding_box):
         up = bounding_box[0]
@@ -164,25 +168,24 @@ class Makeup_Sheet:
         new_path = self._new_folder_path + "/" + self._student_name
         if self._student_name == "---Unsorted---":
             new_file_name = self._the_file
-            print_color = bcolors.FAIL
+            print(bcolors.FAIL + f"Failed to sort {self._the_file}. Moved to unsorted folder.")
         else:
             new_file_name = self._student_name + " (" + the_date + ")"
-            print_color = bcolors.OKBLUE
+            print(bcolors.ENDC + f"Successfully sorted makeup sheet: {bcolors.OKCYAN}{new_file_name}" + bcolors.ENDC)
         new_file = new_path + "/" + new_file_name
         if not os.path.exists(new_path):
             os.makedirs(new_path)
         os.rename(original_file, new_file)
-        print(print_color + f"Moved {new_file_name} Makeup Sheet" + bcolors.ENDC)
 
 
 if __name__ == "__main__":
     # --- Mac File Path ---
-    raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-    sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+    # raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+    # sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
 
     # --- Windows File Path ---
-    # raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-    # sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+    raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+    sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
 
     # Start Sorter
     muss = Makeup_Sheet_Sorter(raw_folder, sorted_folder)
