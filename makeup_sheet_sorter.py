@@ -117,5 +117,7 @@ class Makeup_Sheet:
 
 
 if __name__ == "__main__":
-    muss = Makeup_Sheet_Sorter("./Test_Images", "./Sorted_Files")
+    raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+    sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+    muss = Makeup_Sheet_Sorter(raw_folder, sorted_folder)
     muss.main()
