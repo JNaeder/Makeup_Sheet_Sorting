@@ -17,31 +17,55 @@ class Makeup_Sheet_Sorter:
         self._output_folder = output_folder_path
 
     def main(self):
+        """
+        Main function that loops through all the files in the folder and processes them. Also calculates the
+        statistics and the print the statements in the output.
+        """
+
+        # Print starting message
         print(bcolors.OKGREEN + "\n-------------------------STARTING-------------------------" + bcolors.ENDC)
+
+        # Start the performance timer
         start_time = time.perf_counter()
+
+        # Initialize counters
         total_files = len(self._the_images)
         total_sort_success = 0
+
+        # Loop through every file in the RAW Google Drive folder
         for file in self._the_images:
+
+            # Create a content variable with the binary information of the image
             full_file_path = os.path.join(self._image_folder_path, file)
             with io.open(full_file_path, "rb") as image_file:
                 content = image_file.read()
 
+            # Sends the image to the Google Cloud Vision API. Gets back response text.
             image = vision.Image(content=content)
             response = self._client.document_text_detection(image=image)
-
             annotated_text = response.full_text_annotation
+
+            # Parse through the text to get the Student Name and the Date of Session
             student_name = self.parse_text_for_key(annotated_text, "Student Name")
             if student_name != "---Unsorted---":
                 total_sort_success += 1
             date_of_session = self.parse_text_for_key(annotated_text, "Date of Session")
+
+            # Create a new makeup sheet object, and run the process method on it
             makeup_sheet = Makeup_Sheet(student_name, date_of_session, file, self._image_folder_path,
                                         self._output_folder)
             makeup_sheet.process_file()
+
+        # If there are files, calculate success rate and print the results
         if total_files != 0:
             success_rate = round(total_sort_success / total_files, 2)
             print(bcolors.WARNING + f"[Total Files: {total_files}] [Successful: {total_sort_success}] "
                                     f"[Success Rate: {success_rate}]" + bcolors.ENDC)
+
+        #  End the performance timer
         total_time = time.perf_counter() - start_time
+
+        # Print the closing message
         print(bcolors.WARNING + f"Finished in {round(total_time, 2)} seconds.")
         print(bcolors.OKGREEN + "-------------------------COMPLETE-------------------------" + bcolors.ENDC)
 
