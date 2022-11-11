@@ -5,12 +5,12 @@ import os
 
 
 class Makeup_Sheet_Sorter:
-    def __init__(self, image_folder_path):
+    def __init__(self, image_folder_path, output_folder_path):
         self._credentials = service_account.Credentials.from_service_account_file("google_credentials.json")
         self._client = vision.ImageAnnotatorClient(credentials=self._credentials)
         self._image_folder_path = image_folder_path
         self._the_images = os.listdir(self._image_folder_path)
-        self._output_folder = "./Sorted_Files"
+        self._output_folder = output_folder_path
 
     def main(self):
         for file in self._the_images:
@@ -117,5 +117,5 @@ class Makeup_Sheet:
 
 
 if __name__ == "__main__":
-    muss = Makeup_Sheet_Sorter("./Test_Images")
+    muss = Makeup_Sheet_Sorter("./Test_Images", "./Sorted_Files")
     muss.main()
