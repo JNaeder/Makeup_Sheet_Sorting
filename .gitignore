@@ -1,3 +1,4 @@
 .idea/
 Sorted_Files
 google_credentials.json
+__pycache__/
