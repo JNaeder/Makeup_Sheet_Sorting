@@ -3,18 +3,28 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import io
 import os
+import platform
 from dateutil import parser
 import time
 from bcolors import *
+from vertex_helper import get_bounding_range, check_vertices
 
 
 class Makeup_Sheet_Sorter:
     def __init__(self, image_folder_path, output_folder_path):
+        # Google Vision Stuff
         self._credentials = service_account.Credentials.from_service_account_file("google_credentials.json")
         self._client = vision.ImageAnnotatorClient(credentials=self._credentials)
+        self._annotated_text = None
+
+        # File Path Stuff
         self._image_folder_path = image_folder_path
         self._the_images = os.listdir(self._image_folder_path)
         self._output_folder = output_folder_path
+
+        # Tweak these things
+        self._confidence_threshold = 0.7
+        self._word_buffer = 50
 
     def main(self):
         """
@@ -22,7 +32,6 @@ class Makeup_Sheet_Sorter:
         statistics and the print the statements in the output.
         """
 
-        # Print starting message
         print(bcolors.OKGREEN + "\n-------------------------STARTING-------------------------" + bcolors.ENDC)
 
         # Start the performance timer
@@ -43,13 +52,13 @@ class Makeup_Sheet_Sorter:
             # Sends the image to the Google Cloud Vision API. Gets back response text.
             image = vision.Image(content=content)
             response = self._client.document_text_detection(image=image)
-            annotated_text = response.full_text_annotation
+            self._annotated_text = response.full_text_annotation
 
             # Parse through the text to get the Student Name and the Date of Session
-            student_name = self.parse_text_for_key(annotated_text, "Student Name")
+            student_name = " ".join([word.title() for word in self.parse_text_for_key("Student Name")])
+            date_of_session = self.parse_text_for_key("Date of Session")[0]
             if student_name != "---Unsorted---":
                 total_sort_success += 1
-            date_of_session = self.parse_text_for_key(annotated_text, "Date of Session")
 
             # Create a new makeup sheet object, and run the process method on it
             makeup_sheet = Makeup_Sheet(student_name, date_of_session, file, self._image_folder_path,
@@ -58,58 +67,18 @@ class Makeup_Sheet_Sorter:
 
         # If there are files, calculate success rate and print the results
         if total_files != 0:
-            success_rate = round(total_sort_success / total_files, 2)
+            success_rate = round(total_sort_success / total_files, 4)
             print(bcolors.WARNING + f"[Total Files: {total_files}] [Successful: {total_sort_success}] "
-                                    f"[Success Rate: {success_rate}]" + bcolors.ENDC)
+                                    f"[Success Rate: {success_rate * 100}%]" + bcolors.ENDC)
 
         #  End the performance timer
         total_time = time.perf_counter() - start_time
 
-        # Print the closing message
         print(bcolors.WARNING + f"Finished in {round(total_time, 2)} seconds.")
         print(bcolors.OKGREEN + "-------------------------COMPLETE-------------------------" + bcolors.ENDC)
 
-    def check_vertices(self, list_of_verts, bounding_box):
-        up = bounding_box[0]
-        down = bounding_box[2]
-        right = bounding_box[1]
-        buffer = 50
-        check_box = self.get_bounding_average(list_of_verts)
-        check_y = check_box[1]
-        check_x = check_box[0]
-        if right + buffer < check_x:
-            if up <= check_y:
-                if down + buffer >= check_y:
-                    return True
-        return False
-
-    @staticmethod
-    def get_bounding_range(vertices):
-        left = 100000
-        right = 0
-        up = 100000
-        down = 0
-        for vertex in vertices:
-            x_value = vertex.x
-            y_value = vertex.y
-            if x_value > right:
-                right = x_value
-            if x_value < left:
-                left = x_value
-            if y_value < up:
-                up = y_value
-            if y_value > down:
-                down = y_value
-        return [up, right, down, left]
-
-    def get_bounding_average(self, vertices):
-        bounding_box = self.get_bounding_range(vertices)
-        average_x = (bounding_box[1] + bounding_box[3]) / 2
-        average_y = (bounding_box[0] + bounding_box[2]) / 2
-        return [average_x, average_y]
-
-    def parse_text_for_key(self, the_annotated_text, the_key):
-        for page in the_annotated_text.pages:
+    def parse_text_for_key(self, the_key):
+        for page in self._annotated_text.pages:
             for block in page.blocks:
                 for paragraph in block.paragraphs:
                     paragraph_text = ""
@@ -118,54 +87,37 @@ class Makeup_Sheet_Sorter:
                         paragraph_text += word_text + " "
                     if the_key in paragraph_text:
                         if the_key == "Student Name":
-                            bounding_box = self.get_bounding_range(paragraph.bounding_box.vertices)
-                            return self.get_the_name(the_annotated_text, bounding_box)
+                            bounding_box = get_bounding_range(paragraph.bounding_box.vertices)
+                            return self.get_the_value(bounding_box)
                         elif the_key == "Date of Session":
-                            bounding_box = self.get_bounding_range(paragraph.bounding_box.vertices)
-                            return self.get_the_date(the_annotated_text, bounding_box)
+                            bounding_box = get_bounding_range(paragraph.bounding_box.vertices)
+                            return self.get_the_value(bounding_box)
 
-    def get_the_name(self, the_annotated_text, vertices):
+    def get_the_value(self, vertices):
         output = []
         total_confidence = 0
         total_word_count = 0
-        for page in the_annotated_text.pages:
+        for page in self._annotated_text.pages:
             for block in page.blocks:
                 for paragraph in block.paragraphs:
                     for word in paragraph.words:
                         word_text = ''.join([symbol.text for symbol in word.symbols])
-                        if self.check_vertices(word.bounding_box.vertices, vertices):
+                        if check_vertices(word.bounding_box.vertices, vertices, self._word_buffer):
                             output.append(word_text)
                             total_confidence += word.confidence
                             total_word_count += 1
         confidence = total_confidence / total_word_count
-        if confidence >= 0.7:
-            full_name = output[1].title() + "_" + output[0].title()
-            return full_name
+        if confidence >= self._confidence_threshold:
+            return output
         else:
-            return "---Unsorted---"
-
-    def get_the_date(self, the_annotated_text, vertices):
-        output = []
-        total_confidence = 0
-        total_word_count = 0
-        for page in the_annotated_text.pages:
-            for block in page.blocks:
-                for paragraph in block.paragraphs:
-                    for word in paragraph.words:
-                        word_text = ''.join([symbol.text for symbol in word.symbols])
-                        if self.check_vertices(word.bounding_box.vertices, vertices):
-                            output.append(word_text)
-                            total_confidence += word.confidence
-                            total_word_count += 1
-        confidence = total_confidence / total_word_count
-        if confidence >= 0.7:
-            return output[0]
-        else:
-            return ""
+            return ["---Unsorted---"]
 
 
 class Makeup_Sheet:
     def __init__(self, student_name, date_of_session, the_file, old_folder_path, new_folder_path):
+        """
+        TODO: Get the file extension
+        """
         self._student_name = student_name
         self._date_of_session = date_of_session
         self._the_file = the_file
@@ -192,14 +144,20 @@ class Makeup_Sheet:
 
 
 if __name__ == "__main__":
+
+    # Get the Operating System that I am running
+    the_os = platform.system()
+
     # --- Mac File Path ---
-    # raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-    # sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+    if the_os == "Darwin":
+        raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+        sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
 
     # --- Windows File Path ---
-    raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-    sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+    else:
+        raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
+        sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
 
     # Start Sorter
-    muss = Makeup_Sheet_Sorter(raw_folder, sorted_folder)
-    muss.main()
+    makeup_sheet_sorter = Makeup_Sheet_Sorter(raw_folder, sorted_folder)
+    makeup_sheet_sorter.main()
