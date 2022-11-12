@@ -1,4 +1,8 @@
 def check_vertices(list_of_verts, bounding_box, buffer):
+    """
+    Takes the list of verts from a word, and the bounding box to check it against. Also takes in a buffer size.
+    Returns true if the vertices are to the right and on the same plane as the bounding box.
+    """
     up, right, down, left = bounding_box
     check_x, check_y = get_bounding_average(list_of_verts)
     if right + buffer < check_x:
