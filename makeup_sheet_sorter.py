@@ -26,7 +26,7 @@ class Makeup_Sheet_Sorter:
         self._output_folder = output_folder_path
 
         # Tweak these things
-        self._confidence_threshold = 0.7
+        self._confidence_threshold = 0.72
         self._word_buffer = 50
 
     def main(self):
@@ -58,7 +58,8 @@ class Makeup_Sheet_Sorter:
             self._annotated_text = response.full_text_annotation
 
             # Parse through the text to get the Student Name and the Date of Session
-            student_name = " ".join([word.title() for word in self.parse_text_for_key("Student Name")])
+            student_output_name = self.parse_text_for_key("Student Name")
+            student_name = " ".join(word.title() for word in student_output_name)
             date_of_session = self.parse_text_for_key("Date of Session")[0]
             if student_name != "---Unsorted---":
                 total_sort_success += 1
@@ -114,6 +115,7 @@ class Makeup_Sheet_Sorter:
                             total_confidence += word.confidence
                             total_word_count += 1
         confidence = total_confidence / total_word_count
+        # print(bcolors.HEADER, output, "Confidence:", confidence, bcolors.ENDC)
         if confidence >= self._confidence_threshold:
             return output
         else:
@@ -151,7 +153,7 @@ class Makeup_Sheet:
         # Set the new file name. If no name can be found, keep the original file name.
         if self._student_name == "---Unsorted---":
             new_file_name = self._the_file
-            print(bcolors.FAIL + f"Failed to sort {self._the_file}. Moved to unsorted folder.")
+            print(bcolors.FAIL + f"Failed to sort {self._the_file}. Moved to unsorted folder." + bcolors.ENDC)
         else:
             new_file_name = self._student_name + " (" + the_date + ")" + "." + self._file_extension
             print(bcolors.ENDC + f"Successfully sorted makeup sheet: {bcolors.OKCYAN}{new_file_name}" + bcolors.ENDC)
