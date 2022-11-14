@@ -1,5 +1,6 @@
 import dateutil.parser
 from google.cloud import vision
+from google.cloud import storage
 from google.oauth2 import service_account
 import io
 import os
