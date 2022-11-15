@@ -1,12 +1,6 @@
 import dateutil.parser
-from google.cloud import vision
-from google.cloud import storage
-from google.oauth2 import service_account
-import io
 import os
-import platform
 from dateutil import parser
-import time
 from bcolors import *
 from vertex_helper import get_bounding_range, check_vertices
 
@@ -15,88 +9,54 @@ class Makeup_Sheet_Sorter:
     """
     The master class that finds images in a path, sense them to the Google Vision API, and parses the data back
     """
-    def __init__(self, image_folder_path, output_folder_path):
-        # Google Vision Stuff
-        self._credentials = service_account.Credentials.from_service_account_file("google_credentials.json")
-        self._client = vision.ImageAnnotatorClient(credentials=self._credentials)
-        self._annotated_text = None
+    def __init__(self):
 
-        # File Path Stuff
-        self._image_folder_path = image_folder_path
-        self._the_images = os.listdir(self._image_folder_path)
-        self._output_folder = output_folder_path
+        self._annotated_text = None
+        self._width = None
+        self._height = None
 
         # Tweak these things
         self._confidence_threshold = 0.72
-        self._word_buffer = 50
+        self._word_buffer = 20
 
-    def main(self):
-        """
-        Main function that loops through all the files in the folder and processes them. Also calculates the
-        statistics and the print the statements in the output.
-        """
+    def get_name_date_object(self, text_annotation):
+        self._annotated_text = text_annotation
+        self._width = self._annotated_text["pages"][0]["width"]
+        self._height = self._annotated_text["pages"][0]["height"]
+        student_name_list = self.parse_text_for_key("Student Name")
+        date_of_session_list = self.parse_text_for_key("Date of Session")
+        
+        try:
+            date_of_session = parser.parse(date_of_session_list[0]).strftime("%Y-%m-%d")
+        except dateutil.parser.ParserError:
+            date_of_session = "--Undated"
 
-        print(bcolors.OKGREEN + "\n-------------------------STARTING-------------------------" + bcolors.ENDC)
+        if len(student_name_list) > 1:
+            student_name = " ".join(student_name_list[1:]) + " " + student_name_list[0]
+        else:
+            student_name = student_name_list[0]
 
-        # Start the performance timer
-        start_time = time.perf_counter()
-
-        # Initialize counters
-        total_files = len(self._the_images)
-        total_sort_success = 0
-
-        # Loop through every file in the RAW Google Drive folder
-        for file in self._the_images:
-
-            # Create a content variable with the binary information of the image
-            full_file_path = os.path.join(self._image_folder_path, file)
-            with io.open(full_file_path, "rb") as image_file:
-                content = image_file.read()
-
-            # Sends the image to the Google Cloud Vision API. Gets back response text.
-            image = vision.Image(content=content)
-            response = self._client.document_text_detection(image=image)
-            self._annotated_text = response.full_text_annotation
-
-            # Parse through the text to get the Student Name and the Date of Session
-            student_output_name = self.parse_text_for_key("Student Name")
-            student_name = " ".join(word.title() for word in student_output_name)
-            date_of_session = self.parse_text_for_key("Date of Session")[0]
-            if student_name != "---Unsorted---":
-                total_sort_success += 1
-
-            # Create a new makeup sheet object, and run the process method on it
-            makeup_sheet = Makeup_Sheet(student_name, date_of_session, file, self._image_folder_path,
-                                        self._output_folder)
-            makeup_sheet.process_file()
-
-        # If there are files, calculate success rate and print the results
-        if total_files != 0:
-            success_rate = round(total_sort_success / total_files, 4)
-            print(bcolors.WARNING + f"[Total Files: {total_files}] [Successful: {total_sort_success}] "
-                                    f"[Fail: {total_files - total_sort_success}] "
-                                    f"[Success Rate: {success_rate * 100}%]" + bcolors.ENDC)
-
-        #  End the performance timer
-        total_time = time.perf_counter() - start_time
-
-        print(bcolors.WARNING + f"Finished in {round(total_time, 2)} seconds.")
-        print(bcolors.OKGREEN + "-------------------------COMPLETE-------------------------" + bcolors.ENDC)
+        name_date_object = {
+            "name": student_name.title(),
+            "date": date_of_session
+        }
+        return name_date_object
 
     def parse_text_for_key(self, the_key):
         """
         Searches through all the text to find a keyword. Creates a bounding box for that keyword,
         then calls the method to find the value associated with that keyword.
         """
-        for page in self._annotated_text.pages:
-            for block in page.blocks:
-                for paragraph in block.paragraphs:
+        for page in self._annotated_text["pages"]:
+            for block in page["blocks"]:
+                for paragraph in block["paragraphs"]:
                     paragraph_text = ""
-                    for word in paragraph.words:
-                        word_text = ''.join([symbol.text for symbol in word.symbols])
+                    for word in paragraph["words"]:
+                        word_text = ''.join([symbol["text"] for symbol in word["symbols"]])
                         paragraph_text += word_text + " "
                     if the_key in paragraph_text:
-                        bounding_box = get_bounding_range(paragraph.bounding_box.vertices)
+                        bounding_box = get_bounding_range(paragraph["boundingBox"]["normalizedVertices"],
+                                                          self._height, self._width)
                         return self.get_the_value(bounding_box)
 
     def get_the_value(self, vertices):
@@ -106,14 +66,15 @@ class Makeup_Sheet_Sorter:
         output = []
         total_confidence = 0
         total_word_count = 0
-        for page in self._annotated_text.pages:
-            for block in page.blocks:
-                for paragraph in block.paragraphs:
-                    for word in paragraph.words:
-                        word_text = ''.join([symbol.text for symbol in word.symbols])
-                        if check_vertices(word.bounding_box.vertices, vertices, self._word_buffer):
+        for page in self._annotated_text["pages"]:
+            for block in page["blocks"]:
+                for paragraph in block["paragraphs"]:
+                    for word in paragraph["words"]:
+                        word_text = ''.join([symbol["text"] for symbol in word["symbols"]])
+                        if check_vertices(word["boundingBox"]["normalizedVertices"], vertices, self._word_buffer,
+                                          self._height, self._width):
                             output.append(word_text)
-                            total_confidence += word.confidence
+                            total_confidence += word["confidence"]
                             total_word_count += 1
         confidence = total_confidence / total_word_count
         # print(bcolors.HEADER, output, "Confidence:", confidence, bcolors.ENDC)
@@ -128,9 +89,9 @@ class Makeup_Sheet:
     A class for a makeup sheet. Takes makeup sheet info and folder locations.
     Is responsible for moving and renaming the files.
     """
-    def __init__(self, student_name, date_of_session, the_file, old_folder_path, new_folder_path):
-        self._student_name = student_name
-        self._date_of_session = date_of_session
+    def __init__(self, name_date_object, the_file, old_folder_path, new_folder_path):
+        self._student_name = name_date_object["name"]
+        self._date_of_session = name_date_object["date"]
         self._the_file = the_file
         self._file_extension = self._the_file.split(".")[1]
         self._old_folder_path = old_folder_path
@@ -169,22 +130,3 @@ class Makeup_Sheet:
         # Move the file from old path to the new path.
         os.rename(original_file, new_file)
 
-
-if __name__ == "__main__":
-
-    # Get the Operating System that I am running
-    the_os = platform.system()
-
-    # --- Mac File Path ---
-    if the_os == "Darwin":
-        raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-        sorted_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
-
-    # --- Windows File Path ---
-    else:
-        raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-        sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
-
-    # Start Sorter
-    makeup_sheet_sorter = Makeup_Sheet_Sorter(raw_folder, sorted_folder)
-    makeup_sheet_sorter.main()
