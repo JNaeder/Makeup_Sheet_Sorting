@@ -8,6 +8,9 @@ from PyPDF2 import PdfFileReader, PdfFileWriter
 raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
 raw_files = os.listdir(raw_folder)
 
+# 20 sheets in 13 minutes
+# Sorted 20 sheets -> 1:30
+
 
 class PDF_Manager:
     def __init__(self):
@@ -64,11 +67,11 @@ class PDF_Manager:
 
             json_string = blob.download_as_string()
             response = json.loads(json_string)
-
             first_page = response["responses"][0]
+            original_page_number = first_page["context"]["pageNumber"] // 2
             text_annotation = first_page['fullTextAnnotation']
 
-            output.append(text_annotation)
+            output.insert(original_page_number, text_annotation)
         return output
 
 
