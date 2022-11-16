@@ -2,3 +2,4 @@
 Sorted_Files
 google_credentials.json
 __pycache__/
+.DS_Store
