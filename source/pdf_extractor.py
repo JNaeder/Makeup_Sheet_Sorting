@@ -1,8 +1,8 @@
 import dateutil.parser
 import os
 from dateutil import parser
-from bcolors import *
-from vertex_helper import get_bounding_range, check_vertices
+from source.bcolors import *
+from source.vertex_helper import get_bounding_range, check_vertices
 
 
 class PDF_Extractor:

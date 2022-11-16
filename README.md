@@ -1,3 +1,6 @@
-# Makeup_Sheet_Sorting
+# SAE Makeup Sheet Sorting
 
-For SAE Makeup Sheets
+Uses Google Vision OCR (Optical Character Recgonitoin) to analyze and sort handwritten
+student makeup forms.
+
+
