@@ -1,18 +1,13 @@
 import json
-import os
 import re
 from google.cloud import storage, vision
 from google.oauth2 import service_account
-from PyPDF2 import PdfFileReader, PdfFileWriter
 
-raw_folder = "/Users/johnnaeder/Google Drive/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
-raw_files = os.listdir(raw_folder)
-
-# 20 sheets in 13 minutes
-# Sorted 20 sheets -> 1:30
+# Scanned 20 sheets in 13 minutes
+# Sorted 20 sheets -> 1:30 Min
 
 
-class PDF_Manager:
+class Google_Cloud_Manager:
     def __init__(self):
         self._gcs_source_uri_path = "gs://makeup_sheet_raw/"
         self._gcs_destination_uri = "gs://makeup_sheet_sorted/pdf_result"
@@ -26,7 +21,6 @@ class PDF_Manager:
         """ Uploads files to the RAW storage bucket"""
         blob = self._raw_bucket.blob(file_name)
         blob.upload_from_filename(full_file_path)
-        print(f"Uploaded {file_name}")
 
     def delete_pdfs_from_buckets(self):
         all_buckets = self._storage_client.list_buckets()
@@ -75,4 +69,4 @@ class PDF_Manager:
         return output
 
 
-pdf_manager = PDF_Manager()
+pdf_manager = Google_Cloud_Manager()

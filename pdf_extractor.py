@@ -5,7 +5,7 @@ from bcolors import *
 from vertex_helper import get_bounding_range, check_vertices
 
 
-class Makeup_Sheet_Sorter:
+class PDF_Extractor:
     """
     The master class that finds images in a path, sense them to the Google Vision API, and parses the data back
     """
@@ -16,7 +16,7 @@ class Makeup_Sheet_Sorter:
         self._height = None
 
         # Tweak these things
-        self._confidence_threshold = 0.72
+        self._confidence_threshold = 0.7
         self._word_buffer = 20
 
     def get_name_date_object(self, text_annotation):
@@ -29,10 +29,10 @@ class Makeup_Sheet_Sorter:
         try:
             date_of_session = parser.parse(date_of_session_list[0]).strftime("%Y-%m-%d")
         except dateutil.parser.ParserError:
-            date_of_session = "--Undated"
+            date_of_session = "--Undated--"
 
         if len(student_name_list) > 1:
-            student_name = " ".join(student_name_list[1:]) + " " + student_name_list[0]
+            student_name = " ".join(student_name_list[1:]) + ", " + student_name_list[0]
         else:
             student_name = student_name_list[0]
 
@@ -104,7 +104,7 @@ class Makeup_Sheet:
         try:
             the_date = parser.parse(self._date_of_session).strftime("%Y-%m-%d")
         except dateutil.parser.ParserError:
-            the_date = "--Undated"
+            the_date = "--Undated--"
 
         # Gets the full path of the original file.
         original_file = self._old_folder_path + "/" + self._the_file

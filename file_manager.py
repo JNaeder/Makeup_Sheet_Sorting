@@ -6,7 +6,6 @@ class File_Manager:
     def __init__(self, input_folder_path, output_folder_path):
         self._input_folder_path = input_folder_path
         self._the_images = os.listdir(self._input_folder_path)
-        self._output_folder = output_folder_path
 
     def pdf_splitter(self, pdf_file_path, file):
         file_name = file.split(".")[0]
