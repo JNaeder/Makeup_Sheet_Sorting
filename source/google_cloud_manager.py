@@ -12,7 +12,7 @@ class Google_Cloud_Manager:
         self._gcs_source_uri_path = "gs://makeup_sheet_raw/"
         self._gcs_destination_uri = "gs://makeup_sheet_sorted/pdf_result"
 
-        self._credentials = service_account.Credentials.from_service_account_file("../google_credentials.json")
+        self._credentials = service_account.Credentials.from_service_account_file("google_credentials.json")
         self._storage_client = storage.Client(credentials=self._credentials)
         self._raw_bucket = self._storage_client.bucket("makeup_sheet_raw")
         self._sorted_bucket = self._storage_client.bucket("makeup_sheet_sorted")

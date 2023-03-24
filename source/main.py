@@ -5,6 +5,10 @@ from bcolors import bcolors
 from pdf_extractor import PDF_Extractor, Makeup_Sheet
 from google_cloud_manager import Google_Cloud_Manager
 
+
+def count_sorted_files(file_path):
+    print("done")
+
 if __name__ == "__main__":
 
     # Get the Operating System that I am running
@@ -19,6 +23,7 @@ if __name__ == "__main__":
     else:
         raw_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/RAW"
         sorted_folder = "G:/Shared drives/NY Tech Drive/Makeup Sheets Stuff/SORTED"
+
 
     # Create instances of the classes
     file_manager = File_Manager(raw_folder, sorted_folder)

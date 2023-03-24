@@ -25,16 +25,22 @@ class PDF_Extractor:
         self._height = self._annotated_text["pages"][0]["height"]
         student_name_list = self.parse_text_for_key("Student Name")
         date_of_session_list = self.parse_text_for_key("Date of Session")
-        
-        try:
-            date_of_session = parser.parse(date_of_session_list[0]).strftime("%Y-%m-%d")
-        except dateutil.parser.ParserError:
+
+        if date_of_session_list:
+            try:
+                date_of_session = parser.parse(date_of_session_list[0]).strftime("%Y-%m-%d")
+            except dateutil.parser.ParserError:
+                date_of_session = "--Undated--"
+        else:
             date_of_session = "--Undated--"
 
-        if len(student_name_list) > 1:
-            student_name = " ".join(student_name_list[1:]) + ", " + student_name_list[0]
+        if student_name_list:
+            if len(student_name_list) > 1:
+                student_name = " ".join(student_name_list[1:]) + ", " + student_name_list[0]
+            else:
+                student_name = student_name_list[0]
         else:
-            student_name = student_name_list[0]
+            student_name = "---Unsorted---"
 
         name_date_object = {
             "name": student_name.title(),
@@ -76,6 +82,8 @@ class PDF_Extractor:
                             output.append(word_text)
                             total_confidence += word["confidence"]
                             total_word_count += 1
+        if total_word_count <= 0:
+            return ["---Unsorted---"]
         confidence = total_confidence / total_word_count
         # print(bcolors.HEADER, output, "Confidence:", confidence, bcolors.ENDC)
         if confidence >= self._confidence_threshold:
@@ -90,7 +98,7 @@ class Makeup_Sheet:
     Is responsible for moving and renaming the files.
     """
     def __init__(self, name_date_object, the_file, old_folder_path, new_folder_path):
-        self._student_name = name_date_object["name"]
+        self._student_name = name_date_object["name"].replace("/", "")
         self._date_of_session = name_date_object["date"]
         self._the_file = the_file
         self._file_extension = self._the_file.split(".")[1]
@@ -122,6 +130,16 @@ class Makeup_Sheet:
 
         # Create full path for the new file
         new_file = new_path + "/" + new_file_name
+
+        # Check if file name already exists, add a number to the end of it
+        file_exists = os.path.isfile(new_file)
+        file_suffix_num = 0
+        while file_exists:
+            file_suffix_num += 1
+            new_file_name = self._student_name + " (" + the_date + ")" + f" -({str(file_suffix_num)})" + "." + self._file_extension
+            new_file = new_path + "/" + new_file_name
+            file_exists = os.path.isfile(new_file)
+
 
         # Check if the folder already exists. If it doesn't, create one.
         if not os.path.exists(new_path):
